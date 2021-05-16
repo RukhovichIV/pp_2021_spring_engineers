@@ -2,12 +2,12 @@
 #ifndef MODULES_TASK_3_RUKHOVICH_I_CSR_MULT_DOUBLE_CSR_MULT_DOUBLE_H_
 #define MODULES_TASK_3_RUKHOVICH_I_CSR_MULT_DOUBLE_CSR_MULT_DOUBLE_H_
 
+#include <tbb/tbb.h>
+
 #include <random>
 #include <stdexcept>
 #include <utility>
 #include <vector>
-
-#include "../../3rdparty/unapproved/unapproved.h"
 
 class RandomDouble {
  public:
@@ -38,18 +38,19 @@ bool Compare(const T &lhs, const T &rhs) {
 }
 
 template <class ValueType, typename UIntType = uint16_t>
-class CSRMatrixSTD {
+class CSRMatrixTBB {
  public:
-  CSRMatrixSTD() = delete;
+  CSRMatrixTBB() = delete;
 
-  CSRMatrixSTD(const CSRMatrixSTD &other) = default;
-  CSRMatrixSTD(CSRMatrixSTD &&other) = default;
+  CSRMatrixTBB(const CSRMatrixTBB &other) = default;
+  CSRMatrixTBB(CSRMatrixTBB &&other) = default;
+  ~CSRMatrixTBB() = default;
 
-  explicit CSRMatrixSTD(UIntType height, UIntType width, size_t num_threads = 1)
+  explicit CSRMatrixTBB(UIntType height, UIntType width, size_t num_threads = 1)
       : counts_(height + 1, 0), num_threads_(num_threads), num_cols_(width) {
   }
 
-  explicit CSRMatrixSTD(UIntType height, UIntType width, const std::vector<ValueType> &matrix,
+  explicit CSRMatrixTBB(UIntType height, UIntType width, const std::vector<ValueType> &matrix,
                         size_t num_threads = 1)
       : counts_(height + 1), num_threads_(num_threads), num_cols_(width) {
     if (static_cast<UIntType>(matrix.size()) != height * width) {
@@ -69,12 +70,12 @@ class CSRMatrixSTD {
     }
   }
 
-  CSRMatrixSTD &operator=(CSRMatrixSTD other) {
+  CSRMatrixTBB &operator=(CSRMatrixTBB other) {
     Swap(other);
     return *this;
   }
 
-  void Swap(CSRMatrixSTD &other) {
+  void Swap(CSRMatrixTBB &other) {
     std::swap(vals_, other.vals_);
     std::swap(cols_, other.cols_);
     std::swap(counts_, other.counts_);
@@ -82,8 +83,8 @@ class CSRMatrixSTD {
     std::swap(num_cols_, other.num_cols_);
   }
 
-  bool operator==(const CSRMatrixSTD &rhs) const {
-    const CSRMatrixSTD &lhs = *this;
+  bool operator==(const CSRMatrixTBB &rhs) const {
+    const CSRMatrixTBB &lhs = *this;
     if (lhs.vals_.size() != rhs.vals_.size() || lhs.counts_.size() != rhs.counts_.size() ||
         lhs.num_cols_ != rhs.num_cols_) {
       return false;
@@ -101,41 +102,32 @@ class CSRMatrixSTD {
     return true;
   }
 
-  CSRMatrixSTD &operator*=(const CSRMatrixSTD &other) {
-    CSRMatrixSTD rhs = other.GetTransposed();
+  CSRMatrixTBB &operator*=(const CSRMatrixTBB &other) {
+    CSRMatrixTBB rhs = other.GetTransposed();
     UIntType res_width = other.num_cols_;
     UIntType res_height = counts_.size() - 1;
     std::vector<ValueType> res_mat(res_width * res_height);
-    auto mult_fun = [&](UIntType first_row, UIntType last_row) {
-      for (UIntType row = first_row; row < last_row; ++row) {
-        for (UIntType col = 0; col < res_width; ++col) {
-          UIntType l_row_cur = counts_[row], r_row_cur = rhs.counts_[col];
-          ValueType cur_val = 0;
-          while (l_row_cur < counts_[row + 1] && r_row_cur < rhs.counts_[col + 1]) {
-            if (cols_[l_row_cur] < rhs.cols_[r_row_cur]) {
-              ++l_row_cur;
-            } else if (cols_[l_row_cur] > rhs.cols_[r_row_cur]) {
-              ++r_row_cur;
-            } else {
-              cur_val += vals_[l_row_cur++] * rhs.vals_[r_row_cur++];
+
+    tbb::task_scheduler_init init(num_threads_);
+    tbb::parallel_for(
+        tbb::blocked_range<UIntType>(0, res_height, 6), [&](tbb::blocked_range<UIntType> &range) {
+          for (UIntType row = range.begin(); row < range.end(); ++row) {
+            for (UIntType col = 0; col < res_width; ++col) {
+              UIntType l_row_cur = counts_[row], r_row_cur = rhs.counts_[col];
+              ValueType cur_val = 0;
+              while (l_row_cur < counts_[row + 1] && r_row_cur < rhs.counts_[col + 1]) {
+                if (cols_[l_row_cur] < rhs.cols_[r_row_cur]) {
+                  ++l_row_cur;
+                } else if (cols_[l_row_cur] > rhs.cols_[r_row_cur]) {
+                  ++r_row_cur;
+                } else {
+                  cur_val += vals_[l_row_cur++] * rhs.vals_[r_row_cur++];
+                }
+              }
+              res_mat[row * res_width + col] = cur_val;
             }
           }
-          res_mat[row * res_width + col] = cur_val;
-        }
-      }
-    };
-    std::vector<std::thread> threads;
-    UIntType rows_per_thread = res_height / static_cast<UIntType>(num_threads_);
-    size_t num_threads_with_add = static_cast<size_t>(res_height) % num_threads_;
-    UIntType cur_row = 0;
-    for (size_t td = 0; td < num_threads_; ++td) {
-      UIntType num_row_for_cur_thread = rows_per_thread + (td < num_threads_with_add ? 1 : 0);
-      threads.emplace_back(mult_fun, cur_row, cur_row + num_row_for_cur_thread);
-      cur_row += num_row_for_cur_thread;
-    }
-    for (size_t td = 0; td < num_threads_; ++td) {
-      threads[td].join();
-    }
+        });
 
     num_cols_ = res_width;
     vals_.resize(0);
@@ -162,8 +154,8 @@ class CSRMatrixSTD {
 
  protected:
   // We can think of it as converting CSR to CSC and back again
-  const CSRMatrixSTD GetTransposed() const {
-    CSRMatrixSTD other(num_cols_, counts_.size() - 1);
+  const CSRMatrixTBB GetTransposed() const {
+    CSRMatrixTBB other(num_cols_, counts_.size() - 1);
     for (UIntType i = 0; i < cols_.size(); ++i) {
       ++other.counts_[cols_[i]];
     }

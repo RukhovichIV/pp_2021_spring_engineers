@@ -37,25 +37,25 @@ time_interval MeasureMulTimeBox(const Matrix lhs, const Matrix rhs, size_t num_t
   return sum_time / res_entries;
 }
 
-TEST(STD, TestMultEmpty) {
-  CSRMatrixSTD<double> l_dmat(2, 5), r_dmat(5, 10);
+TEST(TBB, TestMultEmpty) {
+  CSRMatrixTBB<double> l_dmat(2, 5), r_dmat(5, 10);
   l_dmat *= r_dmat;
-  CSRMatrixSTD<double> res_dmat(2, 10);
+  CSRMatrixTBB<double> res_dmat(2, 10);
   ASSERT_TRUE(l_dmat == res_dmat);
 }
 
-TEST(STD, TestMultDiag) {
+TEST(TBB, TestMultDiag) {
   std::vector<double> diag_mat(10 * 10);
   for (size_t i = 0; i < 10; ++i) {
     diag_mat[i * 10 + i] = 1;
   }
-  CSRMatrixSTD<double> l_dmat(10, 10, diag_mat), r_dmat(10, 10, diag_mat);
+  CSRMatrixTBB<double> l_dmat(10, 10, diag_mat), r_dmat(10, 10, diag_mat);
   l_dmat *= r_dmat;
-  CSRMatrixSTD<double> res_dmat(10, 10, diag_mat);
+  CSRMatrixTBB<double> res_dmat(10, 10, diag_mat);
   ASSERT_TRUE(l_dmat == res_dmat);
 }
 
-TEST(STD, TestMultSimpleToDiag) {
+TEST(TBB, TestMultSimpleToDiag) {
   std::vector<double> diag_mat(10 * 10), init_mat(10 * 10);
   for (size_t i = 0; i < 10; ++i) {
     diag_mat[i * 10 + i] = 1;
@@ -63,13 +63,13 @@ TEST(STD, TestMultSimpleToDiag) {
       init_mat[i * 10 + j] = RandomDouble::Next();
     }
   }
-  CSRMatrixSTD<double> l_dmat(10, 10, init_mat), r_dmat(10, 10, diag_mat);
+  CSRMatrixTBB<double> l_dmat(10, 10, init_mat), r_dmat(10, 10, diag_mat);
   l_dmat *= r_dmat;
-  CSRMatrixSTD<double> res_dmat(10, 10, init_mat);
+  CSRMatrixTBB<double> res_dmat(10, 10, init_mat);
   ASSERT_TRUE(l_dmat == res_dmat);
 }
 
-TEST(STD, TestMultDense) {
+TEST(TBB, TestMultDense) {
   size_t same = 64;
   size_t a = same, b = same, c = same;
   std::vector<double> l_init_mat(a * b), r_init_mat(b * c);
@@ -89,7 +89,7 @@ TEST(STD, TestMultDense) {
       for (size_t k = 0; k < c; ++k) {
         res_mat[i * c + k] += l_init_mat[i * b + j] * r_init_mat[j * c + k];
       }
-  CSRMatrixSTD<double> l_dmat(a, b, l_init_mat), r_dmat(b, c, r_init_mat);
+  CSRMatrixTBB<double> l_dmat(a, b, l_init_mat), r_dmat(b, c, r_init_mat);
   time_interval t1 = MeasureMulTimeBox(l_dmat, r_dmat, 1);
   time_interval t2 = MeasureMulTimeBox(l_dmat, r_dmat, 2);
   time_interval t4 = MeasureMulTimeBox(l_dmat, r_dmat, 4);
@@ -102,11 +102,11 @@ TEST(STD, TestMultDense) {
   std::cout << std::fixed << "Speed up:\t" << 1. << '\t' << t1 / t2 << '\t' << t1 / t4 << '\t'
             << t1 / t8 << '\t' << t1 / t16 << '\n';
   l_dmat *= r_dmat;
-  CSRMatrixSTD<double> res_dmat(a, c, res_mat);
+  CSRMatrixTBB<double> res_dmat(a, c, res_mat);
   ASSERT_TRUE(l_dmat == res_dmat);
 }
 
-TEST(STD, TestMultSparse) {
+TEST(TBB, TestMultSparse) {
   size_t same = 64;
   double zero_per_elem = 2;
   size_t a = same, b = same, c = same;
@@ -130,7 +130,7 @@ TEST(STD, TestMultSparse) {
       for (size_t k = 0; k < c; ++k) {
         res_mat[i * c + k] += l_init_mat[i * b + j] * r_init_mat[j * c + k];
       }
-  CSRMatrixSTD<double> l_dmat(a, b, l_init_mat), r_dmat(b, c, r_init_mat);
+  CSRMatrixTBB<double> l_dmat(a, b, l_init_mat), r_dmat(b, c, r_init_mat);
   time_interval t1 = MeasureMulTimeBox(l_dmat, r_dmat, 1);
   time_interval t2 = MeasureMulTimeBox(l_dmat, r_dmat, 2);
   time_interval t4 = MeasureMulTimeBox(l_dmat, r_dmat, 4);
@@ -143,6 +143,6 @@ TEST(STD, TestMultSparse) {
   std::cout << std::fixed << "Speed up:\t" << 1. << '\t' << t1 / t2 << '\t' << t1 / t4 << '\t'
             << t1 / t8 << '\t' << t1 / t16 << '\n';
   l_dmat *= r_dmat;
-  CSRMatrixSTD<double> res_dmat(a, c, res_mat);
+  CSRMatrixTBB<double> res_dmat(a, c, res_mat);
   ASSERT_TRUE(l_dmat == res_dmat);
 }
